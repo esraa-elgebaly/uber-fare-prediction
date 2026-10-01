@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NYC Taxi Fare: Model Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F6F2; --card:#FDFCF9; --text:#16213A; --muted:#4F5868; --line:#E2E0D8;
+  --c-gray:#8C97AB; --c-blue:#2B5C8A; --c-orange:#B8561A; --good:#2E7D5B;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1626; --card:#16213A; --text:#E8ECF4; --muted:#A5AEC2; --line:#2A3855;
+    --c-gray:#9AA5BA; --c-blue:#6FA3D8; --c-orange:#F0A35E; --good:#66BB94;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1626; --card:#16213A; --text:#E8ECF4; --muted:#A5AEC2; --line:#2A3855;
+  --c-gray:#9AA5BA; --c-blue:#6FA3D8; --c-orange:#F0A35E; --good:#66BB94;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*,*::before,*::after{box-sizing:inherit;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5;}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 18px 56px;}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--c-blue);}
+h1{font-size:clamp(22px,4vw,32px);margin:4px 0;line-height:1.2;}
+.sub{color:var(--muted);margin:0;font-size:14px;}
+.banner{display:flex;flex-wrap:wrap;gap:10px 28px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 18px;margin-bottom:14px;font-size:14px;}
+.banner b{color:var(--c-orange);}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;}
+.card h2{font-size:17px;margin:0 0 2px;}
+.note{color:var(--muted);font-size:13px;margin:0 0 10px;}
+.grid{display:grid;gap:14px;margin-bottom:14px;}
+.two{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:6px 12px;border-radius:999px;cursor:pointer;}
+.btn:hover{border-color:var(--c-blue);}
+.btn[aria-pressed="true"]{background:var(--c-orange);border-color:var(--c-orange);color:#fff;}
+.btn[disabled]{opacity:.4;cursor:not-allowed;}
+.lbl{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:4px;align-self:center;}
+svg{width:100%;height:auto;display:block;}
+svg text{font-family:inherit;}
+.t{fill:var(--muted);font-size:12px;} .v{fill:var(--text);font-size:13px;font-weight:600;} .n{fill:var(--text);font-size:13px;}
+.gl{stroke:var(--line);stroke-width:1;}
+.msg{margin:8px 0 0;padding:10px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:14px;}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;}
+.stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.stat .big{font-size:24px;font-weight:700;color:var(--c-orange);}
+input[type=range]{width:100%;accent-color:var(--c-orange);}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:4px;}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+.foot{color:var(--muted);font-size:12.5px;margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Machine learning internship · Task 2</div>
+      <h1>NYC taxi fare: model explorer</h1>
+      <p class="sub">Click, filter and compare the models from the notebook. Every number comes from the notebook outputs.</p>
+    </div>
+    <button class="btn" id="themeBtn" aria-pressed="false">Dark mode</button>
+  </header>
+
+  <div class="banner">
+    <span>Final model: <b>Tuned Gradient Boosting</b></span>
+    <span>Test MAE <b>$1.54</b> (baseline $2.15)</span>
+    <span>Test RMSE <b>$3.87</b> (baseline $4.76)</span>
+    <span>Test R&sup2; <b>0.837</b> (baseline 0.752)</span>
+  </div>
+
+  <section class="card" style="margin-bottom:14px">
+    <h2>1. Compare the models</h2>
+    <p class="note">Pick the data the models were validated on, the cost function, and which models to show.</p>
+    <div class="row" id="stageBtns"></div>
+    <div class="row" id="metricBtns"></div>
+    <div class="row" id="modelBtns"></div>
+    <div id="compareChart"></div>
+    <p class="msg" id="compareMsg"></p>
+  </section>
+
+  <section class="grid two">
+    <div class="card">
+      <h2>2. Which model fits which situation?</h2>
+      <p class="note">Average error on the test set by trip length (baseline, tuned Ridge and Gradient Boosting before tuning).</p>
+      <div class="row" id="bandBtns"></div>
+      <div id="bandChart"></div>
+      <p class="msg" id="bandMsg"></p>
+    </div>
+    <div class="card">
+      <h2>3. Is the gain the same on every fold?</h2>
+      <p class="note">R&sup2; of Ridge and Gradient Boosting on the 5 cross-validation folds.</p>
+      <div class="row" id="foldBtns"></div>
+      <div id="foldChart"></div>
+      <p class="msg" id="foldMsg"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4. Cost function playground: MAE vs RMSE</h2>
+    <p class="note">Ten trips. Nine are off by $1. Drag the slider to change how far off the tenth trip is.</p>
+    <label for="bigMiss" class="lbl">Size of the one big miss: <b id="bigVal">$10</b></label>
+    <input type="range" id="bigMiss" min="1" max="30" step="1" value="10">
+    <div id="missChart"></div>
+    <div class="stats" id="missStats"></div>
+    <p class="msg" id="missMsg"></p>
+  </section>
+
+  <p class="foot">Stage 1 uses a 100,000-row sample of the training set and stage 2 uses all of it (both 5-fold cross-validation). Fit time is for the whole Pipeline per fold; the linear models also pay for the feature-selection step, which the tree models skip. Trip-length and accuracy numbers are from the 97,443-trip test set.</p>
+</div>
+
+<script>
+/* ---------------- data from the notebook outputs ---------------- */
+const MODELS = {gb:"Gradient Boosting", rf:"Random Forest", et:"Extra Trees", ridge:"Ridge", lin:"Linear Regression"};
+const STAGES = {
+  s1:{label:"Stage 1: 100,000-row sample (5 models)", rows:{
+    gb:{mae:1.617,rmse:3.925,r2:0.830,fit:2.854}, rf:{mae:1.688,rmse:4.045,r2:0.820,fit:19.377},
+    et:{mae:1.765,rmse:4.113,r2:0.814,fit:11.357}, ridge:{mae:2.147,rmse:4.645,r2:0.763,fit:9.936},
+    lin:{mae:2.147,rmse:4.645,r2:0.763,fit:10.330}}},
+  s2:{label:"Stage 2: full training data (3 models)", rows:{
+    gb:{mae:1.576,rmse:3.968,r2:0.829,fit:7.484}, rf:{mae:1.609,rmse:4.037,r2:0.823,fit:70.960},
+    lin:{mae:2.151,rmse:4.773,r2:0.753,fit:8.739}}}
+};
+const METRICS = {
+  mae:{label:"MAE ($)", fmt:v=>"$"+v.toFixed(2), better:"lower"},
+  rmse:{label:"RMSE ($)", fmt:v=>"$"+v.toFixed(2), better:"lower"},
+  r2:{label:"R\u00B2", fmt:v=>v.toFixed(3), better:"higher"},
+  fit:{label:"Fit time (s)", fmt:v=>v.toFixed(1)+" s", better:"lower"},
+  pareto:{label:"Accuracy vs speed", fmt:v=>v.toFixed(2), better:"lower"}
+};
+const BANDS = {labels:["0-1 km","1-2 km","2-5 km","5-10 km","10-50 km"],
+  lin:[1.85,1.28,1.80,3.47,6.33], ridge:[1.85,1.28,1.80,3.47,6.33], gb:[1.54,0.97,1.34,2.25,3.95]};
+const ALL = {lin:2.1537, ridge:2.1537, gb:1.5575};
+const FOLDS = {ridge:[0.7766,0.7608,0.7469,0.7704,0.7101], gb:[0.8492,0.8341,0.8204,0.8542,0.7873]};
+
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const COLOR = {gb:"--c-orange", rf:"--c-blue", et:"--c-blue", ridge:"--c-gray", lin:"--c-gray"};
+function legend(items){return '<div class="legend">'+items.map(i=>`<span><i style="background:var(${i[1]})"></i>${i[0]}</span>`).join("")+'</div>';}
+function niceMax(v){const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p;}
+function btns(el,items,sel,attr){
+  el.innerHTML=items.map(i=>`<button class="btn" ${attr}="${i.key}" aria-pressed="${i.key===sel}" ${i.disabled?"disabled":""}>${i.label}</button>`).join("");
+}
+function vgroups(el,{labels,series,fmt,ymax,hi,aria}){
+  const W=640,H=300,m={l:48,r:10,t:18,b:40},iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const max=ymax||niceMax(Math.max(...series.flatMap(s=>s.values))*1.12);
+  let g="";
+  for(let i=0;i<=5;i++){const v=max*i/5,y=m.t+ih-ih*i/5;
+    g+=`<line class="gl" x1="${m.l}" x2="${W-m.r}" y1="${y}" y2="${y}"/><text class="t" x="${m.l-6}" y="${y+4}" text-anchor="end">${fmt(v)}</text>`;}
+  const gw=iw/labels.length, bw=Math.min(46,(gw*0.74)/series.length);
+  labels.forEach((lab,i)=>{
+    const x0=m.l+gw*i+gw/2-(bw*series.length)/2, dim=(hi!==undefined&&hi!==null&&hi!==i);
+    series.forEach((s,j)=>{
+      const v=s.values[i],h=Math.max(0,ih*v/max),x=x0+bw*j,y=m.t+ih-h;
+      g+=`<rect x="${x}" y="${y}" width="${bw-4}" height="${h}" rx="3" opacity="${dim?0.3:1}" style="fill:var(${s.color})"><title>${s.name}, ${lab}: ${fmt(v)}</title></rect>`;
+      g+=`<text class="v" x="${x+(bw-4)/2}" y="${y-5}" text-anchor="middle" opacity="${dim?0.45:1}">${fmt(v)}</text>`;});
+    g+=`<text class="n" x="${m.l+gw*i+gw/2}" y="${H-m.b+20}" text-anchor="middle">${lab}</text>`;});
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria||"chart"}">${g}</svg>`+legend(series.map(s=>[s.name,s.color]));
+}
+
+/* ---------------- 1. compare ---------------- */
+let stage="s1", metric="rmse";
+const active={gb:true,rf:true,et:true,ridge:true,lin:true};
+function renderCompare(){
+  const rows=STAGES[stage].rows;
+  btns($("stageBtns"),Object.keys(STAGES).map(k=>({key:k,label:STAGES[k].label})),stage,"data-stage");
+  btns($("metricBtns"),Object.keys(METRICS).map(k=>({key:k,label:METRICS[k].label})),metric,"data-metric");
+  $("stageBtns").insertAdjacentHTML("afterbegin",'<span class="lbl">Data</span>');
+  $("metricBtns").insertAdjacentHTML("afterbegin",'<span class="lbl">Cost function</span>');
+  btns($("modelBtns"),Object.keys(MODELS).map(k=>({key:k,label:MODELS[k],disabled:!(k in rows)})),null,"data-model");
+  Object.keys(MODELS).forEach(k=>{const b=document.querySelector(`[data-model="${k}"]`); b.setAttribute("aria-pressed",String(!!active[k]&&k in rows));});
+  $("modelBtns").insertAdjacentHTML("afterbegin",'<span class="lbl">Models</span>');
+  const names=Object.keys(rows).filter(k=>active[k]);
+  if(!names.length){$("compareChart").innerHTML="";$("compareMsg").textContent="Pick at least one model.";return;}
+  if(metric==="pareto") return renderPareto(rows,names);
+  const M=METRICS[metric], asc=M.better==="lower";
+  const sorted=names.slice().sort((a,b)=>asc?rows[a][metric]-rows[b][metric]:rows[b][metric]-rows[a][metric]);
+  const vals=sorted.map(k=>rows[k][metric]);
+  const W=640,rowH=54,H=rowH*sorted.length+10,left=170,iw=W-left-90, max=metric==="r2"?1:niceMax(Math.max(...vals)*1.05);
+  let g="";
+  sorted.forEach((k,i)=>{
+    const y=8+rowH*i, w=Math.max(3,iw*rows[k][metric]/max), best=i===0;
+    g+=`<text class="n" x="${left-12}" y="${y+27}" text-anchor="end" style="font-weight:${best?700:400}">${MODELS[k]}</text>`;
+    g+=`<rect x="${left}" y="${y+8}" width="${w}" height="32" rx="6" style="fill:var(${best?"--c-orange":"--c-gray"})"><title>${MODELS[k]}: ${M.fmt(rows[k][metric])}</title></rect>`;
+    g+=`<text class="v" x="${left+w+8}" y="${y+29}">${M.fmt(rows[k][metric])}</text>`;
+  });
+  $("compareChart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${M.label} by model">${g}</svg>`;
+  const b=sorted[0], r=sorted[sorted.length-1];
+  let txt=`Best on ${M.label}: <b>${MODELS[b]}</b> (${M.fmt(rows[b][metric])}).`;
+  if(sorted.length>1){
+    const gap=Math.abs(rows[r][metric]-rows[b][metric])/rows[r][metric]*100;
+    txt+=` ${asc?"Lowest":"Highest"} is best here; the worst shown is ${MODELS[r]} (${M.fmt(rows[r][metric])}), so the best is about ${gap.toFixed(0)}% ${metric==="r2"?"better":"smaller"} than the worst.`;
+  }
+  if(metric==="fit") txt+=" This is the whole Pipeline per fold.";
+  $("compareMsg").innerHTML=txt;
+}
+function renderPareto(rows,names){
+  const W=640,H=330,m={l:56,r:20,t:20,b:50},iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const xmax=niceMax(Math.max(...names.map(k=>rows[k].fit))*1.1), ymin=3.5, ymax=5.0;
+  const sx=v=>m.l+iw*v/xmax, sy=v=>m.t+ih-ih*(v-ymin)/(ymax-ymin);
+  let g="";
+  for(let i=0;i<=5;i++){const v=ymin+(ymax-ymin)*i/5,y=sy(v);
+    g+=`<line class="gl" x1="${m.l}" x2="${W-m.r}" y1="${y}" y2="${y}"/><text class="t" x="${m.l-6}" y="${y+4}" text-anchor="end">$${v.toFixed(1)}</text>`;}
+  for(let i=0;i<=4;i++){const v=xmax*i/4,x=sx(v);
+    g+=`<line class="gl" x1="${x}" x2="${x}" y1="${m.t}" y2="${m.t+ih}"/><text class="t" x="${x}" y="${H-m.b+18}" text-anchor="middle">${v.toFixed(0)} s</text>`;}
+  g+=`<text class="t" x="${m.l+iw/2}" y="${H-8}" text-anchor="middle">Fit time per fold (faster is left)</text>`;
+  g+=`<text class="t" x="14" y="${m.t+ih/2}" text-anchor="middle" transform="rotate(-90 14 ${m.t+ih/2})">RMSE (better is lower)</text>`;
+  names.forEach(k=>{
+    const x=sx(rows[k].fit),y=sy(rows[k].rmse),c=k==="gb"?"--c-orange":"--c-blue";
+    g+=`<circle cx="${x}" cy="${y}" r="9" style="fill:var(${c})"><title>${MODELS[k]}: RMSE $${rows[k].rmse.toFixed(2)}, ${rows[k].fit.toFixed(1)} s</title></circle>`;
+    g+=`<text class="v" x="${Math.min(x+14,W-90)}" y="${y+4}">${MODELS[k]}</text>`;});
+  $("compareChart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="RMSE against fit time for each model">${g}</svg>`;
+  const gb=rows.gb;
+  $("compareMsg").innerHTML=gb&&active.gb?`The best models sit in the bottom-left corner. <b>Gradient Boosting</b> has the lowest RMSE and one of the shortest fit times, so there is no accuracy-versus-speed trade-off to make here.`:"The best models sit in the bottom-left corner (lower error, shorter fit time).";
+}
+
+/* ---------------- 2. bands ---------------- */
+let band=0;
+function renderBands(){
+  btns($("bandBtns"),["All trips"].concat(BANDS.labels).map((l,i)=>({key:String(i),label:l})),String(band),"data-band");
+  let labels,lin,ridge,gb;
+  if(band===0){labels=["All trips"];lin=[ALL.lin];ridge=[ALL.ridge];gb=[ALL.gb];}
+  else{const i=band-1;labels=[BANDS.labels[i]];lin=[BANDS.lin[i]];ridge=[BANDS.ridge[i]];gb=[BANDS.gb[i]];}
+  vgroups($("bandChart"),{labels,fmt:v=>"$"+v.toFixed(2),aria:"Average error by trip length",
+    series:[{name:"Linear baseline",color:"--c-gray",values:lin},{name:"Tuned Ridge",color:"--c-blue",values:ridge},{name:"Gradient Boosting",color:"--c-orange",values:gb}]});
+  const gain=(1-gb[0]/lin[0])*100;
+  $("bandMsg").innerHTML=`${band===0?"Over all trips":"For trips of "+labels[0]}, <b>Gradient Boosting</b> has the lowest average error: $${gb[0].toFixed(2)} against $${lin[0].toFixed(2)}, which is <b>${gain.toFixed(0)}% less</b>. Tuned Ridge is identical to the linear baseline.`+
+    (band===5?" This is where the gain is biggest.":"");
+}
+
+/* ---------------- 3. folds ---------------- */
+let fold=0;
+function renderFolds(){
+  btns($("foldBtns"),["All folds","Fold 1","Fold 2","Fold 3","Fold 4","Fold 5"].map((l,i)=>({key:String(i),label:l})),String(fold),"data-fold");
+  const labels=["Fold 1","Fold 2","Fold 3","Fold 4","Fold 5"];
+  vgroups($("foldChart"),{labels,fmt:v=>v.toFixed(2),ymax:1,hi:fold===0?null:fold-1,aria:"R squared per fold",
+    series:[{name:"Ridge",color:"--c-gray",values:FOLDS.ridge},{name:"Gradient Boosting",color:"--c-orange",values:FOLDS.gb}]});
+  const gains=FOLDS.gb.map((v,i)=>v-FOLDS.ridge[i]);
+  if(fold===0){$("foldMsg").innerHTML=`Gradient Boosting wins <b>${gains.filter(g=>g>0).length} of 5 folds</b>, with a gain between <b>+${Math.min(...gains).toFixed(3)}</b> and <b>+${Math.max(...gains).toFixed(3)}</b> R&sup2;.`;}
+  else{const i=fold-1;$("foldMsg").innerHTML=`On fold ${fold}: Ridge <b>${FOLDS.ridge[i].toFixed(4)}</b>, Gradient Boosting <b>${FOLDS.gb[i].toFixed(4)}</b>, a gain of <b>+${gains[i].toFixed(4)}</b> R&sup2;.`;}
+}
+
+/* ---------------- 4. cost playground ---------------- */
+function renderMiss(){
+  const big=parseFloat($("bigMiss").value); $("bigVal").textContent="$"+big;
+  const errs=[1,1,1,1,1,1,1,1,1,big];
+  const mae=errs.reduce((a,b)=>a+b,0)/10, rmse=Math.sqrt(errs.reduce((a,b)=>a+b*b,0)/10), ratio=rmse/mae;
+  const W=640,H=190,base=150,max=30;
+  let g=`<line class="gl" x1="20" x2="620" y1="${base}" y2="${base}"/>`;
+  errs.forEach((e,i)=>{const h=Math.max(4,120*e/max),x=40+i*58,hot=i===9;
+    g+=`<rect x="${x}" y="${base-h}" width="40" height="${h}" rx="4" style="fill:var(${hot?"--c-orange":"--c-gray"})"><title>Trip ${i+1}: off by $${e}</title></rect>`;
+    g+=`<text class="v" x="${x+20}" y="${base-h-6}" text-anchor="middle">$${e}</text><text class="t" x="${x+20}" y="${base+18}" text-anchor="middle">trip ${i+1}</text>`;});
+  $("missChart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ten trips: nine off by one dollar and one off by the chosen amount">${g}</svg>`;
+  $("missStats").innerHTML=
+    `<div class="stat"><div class="k">MAE</div><div class="big">$${mae.toFixed(2)}</div></div>`+
+    `<div class="stat"><div class="k">RMSE</div><div class="big">$${rmse.toFixed(2)}</div></div>`+
+    `<div class="stat"><div class="k">RMSE &divide; MAE</div><div class="big">${ratio.toFixed(2)}</div></div>`;
+  $("missMsg").innerHTML=`One big miss moves MAE from $1.00 to $${mae.toFixed(2)}, but RMSE from $1.00 to $${rmse.toFixed(2)}, because RMSE squares each miss. In the notebook, RMSE &divide; MAE rose from <b>2.21</b> (baseline) to <b>2.51</b> (final model): MAE fell 28.5% but RMSE only 18.8%, so what is left is mostly a few big misses.`;
+}
+
+/* ---------------- events ---------------- */
+document.addEventListener("click",e=>{
+  const s=e.target.closest("[data-stage]"); if(s){stage=s.dataset.stage;if(stage==="s2"&&metric==="pareto"){} renderCompare();return;}
+  const m=e.target.closest("[data-metric]"); if(m){metric=m.dataset.metric;renderCompare();return;}
+  const md=e.target.closest("[data-model]"); if(md&&!md.disabled){active[md.dataset.model]=!active[md.dataset.model];renderCompare();return;}
+  const b=e.target.closest("[data-band]"); if(b){band=parseInt(b.dataset.band,10);renderBands();return;}
+  const f=e.target.closest("[data-fold]"); if(f){fold=parseInt(f.dataset.fold,10);renderFolds();return;}
+});
+$("bigMiss").addEventListener("input",renderMiss);
+$("themeBtn").addEventListener("click",()=>{
+  const root=document.documentElement;
+  const dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);
+  root.setAttribute("data-theme",dark?"light":"dark");
+  $("themeBtn").textContent=dark?"Dark mode":"Light mode"; $("themeBtn").setAttribute("aria-pressed",String(!dark));
+});
+
+renderCompare(); renderBands(); renderFolds(); renderMiss();
+</script>
+</body>
+</html>
