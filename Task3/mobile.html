@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uber Fare - Mobile App</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',system-ui,sans-serif; }
+  body { background:#111; display:flex; justify-content:center; align-items:center; min-height:100vh; padding:16px; }
+  .phone { width:390px; height:844px; background:#000; border-radius:44px; border:10px solid #1c1c1e;
+    box-shadow:0 30px 80px rgba(0,0,0,.7); overflow:hidden; position:relative; display:flex; flex-direction:column; }
+  .statusbar { height:44px; background:#000; color:#fff; display:flex; justify-content:space-between;
+    align-items:center; padding:0 24px; font-size:13px; font-weight:600; flex-shrink:0; z-index:1200; }
+  .notch { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:28px;
+    background:#000; border-radius:16px; z-index:1300; }
+  #map { flex:1; z-index:1; }
+
+  /* pickup and dropoff search at the top */
+  .search-overlay { position:absolute; top:54px; left:12px; right:12px; z-index:1000; }
+  .search-box { background:#fff; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,.25); padding:4px 0; }
+  .search-row { display:flex; align-items:center; padding:10px 14px; gap:10px; cursor:text; }
+  .search-row + .search-row { border-top:1px solid #eee; }
+  .search-row.active { background:#F5F7FA; }
+  .dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .dot.pu { background:#000; } .dot.do { background:#276EF1; border-radius:2px; }
+  .search-row input { border:none; outline:none; flex:1; font-size:14px; color:#111; background:transparent; }
+  .search-row input::placeholder { color:#999; }
+  .suggest { background:#fff; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.25); margin-top:6px;
+    list-style:none; max-height:260px; overflow-y:auto; display:none; }
+  .suggest li { padding:10px 14px; font-size:14px; cursor:pointer; border-bottom:1px solid #f2f2f2; }
+  .suggest li small { display:block; color:#888; font-size:11px; }
+  .suggest li:hover { background:#F5F7FA; }
+  .coords-chip { position:absolute; top:150px; left:12px; z-index:999; background:rgba(0,0,0,.75); color:#fff;
+    font-size:11px; padding:6px 10px; border-radius:16px; }
+  .cars-chip { position:absolute; top:150px; right:12px; z-index:999; background:#fff; color:#111;
+    font-size:11px; padding:6px 10px; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+
+  /* the white sheet at the bottom */
+  .sheet { position:absolute; bottom:0; left:0; right:0; background:#fff; border-radius:20px 20px 0 0;
+    z-index:1100; box-shadow:0 -6px 24px rgba(0,0,0,.35); max-height:62%; overflow-y:auto; padding:16px 16px 96px; }
+  .grabber { width:40px; height:4px; background:#ccc; border-radius:2px; margin:0 auto 12px; }
+  h2.title { font-size:18px; font-weight:700; color:#111; margin-bottom:2px; }
+  .sub { font-size:12px; color:#777; margin-bottom:12px; }
+  .field { margin-bottom:10px; }
+  .field label { display:block; font-size:11px; font-weight:700; color:#555; text-transform:uppercase;
+    letter-spacing:.4px; margin-bottom:4px; }
+  .field input, .field select { width:100%; padding:11px 12px; border:1.5px solid #ddd; border-radius:8px;
+    font-size:14px; color:#111; background:#fff; outline:none; }
+  .field input:focus, .field select:focus { border-color:#000; }
+  .field input[readonly] { background:#f4f4f4; color:#777; }
+  .row2 { display:flex; gap:10px; } .row2 .field { flex:1; min-width:0; }
+  details.more { margin-bottom:10px; }
+  details.more summary { font-size:13px; font-weight:600; color:#276EF1; cursor:pointer; margin-bottom:8px; }
+  .err { background:#FEECEB; color:#C5221F; border:1px solid #F6C6C2; border-radius:8px;
+    padding:10px 12px; font-size:13px; margin-bottom:10px; display:none; }
+  .err ul { padding-left:16px; }
+  .surge { background:#FFF3E0; color:#8A4B00; border-radius:8px; padding:9px 12px; font-size:12px; margin-bottom:8px; display:none; }
+
+  /* ride list */
+  .rides { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+  .ride { display:flex; align-items:center; gap:12px; border:1.5px solid #e6e6e6; border-radius:12px;
+    padding:12px; cursor:pointer; }
+  .ride.sel { border-color:#000; background:#F5F7FA; }
+  .ride.off { opacity:.4; cursor:not-allowed; }
+  .ride .icon { font-size:26px; width:40px; text-align:center; flex-shrink:0; }
+  .ride .name { font-weight:700; font-size:14px; color:#111; }
+  .ride .meta { font-size:11px; color:#888; }
+  .ride .price { margin-left:auto; font-weight:700; font-size:15px; color:#111; text-align:right; }
+  .ride .price small { font-weight:400; color:#C25E00; font-size:10px; display:block; }
+
+  /* fare breakdown */
+  .fare-card { text-align:center; padding:8px 0 4px; }
+  .fare-card .lbl { font-size:12px; color:#777; }
+  .fare-card .big { font-size:40px; font-weight:800; color:#111; letter-spacing:-1px; }
+  .fare-card .range { font-size:13px; color:#555; margin-bottom:10px; }
+  .break { width:100%; border-collapse:collapse; font-size:13px; }
+  .break td { padding:7px 0; border-top:1px solid #f0f0f0; color:#333; }
+  .break td:last-child { text-align:right; font-weight:600; }
+  .break tr.total td { font-weight:800; font-size:15px; border-top:2px solid #111; }
+  .speed { font-size:11px; color:#888; text-align:center; margin-top:8px; }
+  .promo-msg { font-size:12px; margin:-4px 0 8px; }
+  .promo-msg.ok { color:#0E8345; } .promo-msg.bad { color:#C5221F; }
+
+  /* best time chart: grey = trip fare, orange = busy-time extra */
+  .hourbars { display:flex; align-items:flex-end; gap:2px; height:56px; margin:8px 0 4px; }
+  .hourbars .col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; height:100%; cursor:pointer; }
+  .hourbars .base { background:#D5D9DE; }
+  .hourbars .extra { background:#F08A24; border-radius:2px 2px 0 0; }
+  .hourbars .col.cheapest .base { background:#0E8345; }
+  .hourbars .col.now { outline:1.5px solid #111; }
+  .hourlbl { display:flex; gap:2px; }
+  .hourlbl span { flex:1; text-align:center; font-size:7px; color:#999; }
+  .swapping { display:flex; align-items:center; gap:8px; font-size:12px; color:#276EF1; cursor:pointer; margin:6px 0 10px; font-weight:600; }
+
+  /* the big black button */
+  .cta { position:absolute; bottom:0; left:0; right:0; padding:12px 16px 26px; background:linear-gradient(transparent,#fff 30%); z-index:1150; }
+  .btn { width:100%; padding:16px; background:#000; color:#fff; border:none; border-radius:10px;
+    font-size:16px; font-weight:700; cursor:pointer; }
+  .btn:active { transform:scale(.98); }
+  .btn:disabled { background:#999; }
+  .car { transition:transform .3s linear; }
+
+  /* on a real phone, use the whole screen */
+  @media (max-width:500px) {
+    body { padding:0; }
+    .phone { width:100vw; height:100vh; border:none; border-radius:0; }
+    .notch { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span>LTE ▮▮▮</span></div>
+
+  <div id="map"></div>
+
+  <!-- pickup and dropoff: type a place name, or tap the map -->
+  <div class="search-overlay">
+    <div class="search-box">
+      <div class="search-row" id="pickup-row" onclick="setTurn('pickup')"><span class="dot pu"></span><input id="pickup_search" placeholder="Pickup location"></div>
+      <div class="search-row" id="dropoff-row" onclick="setTurn('dropoff')"><span class="dot do"></span><input id="dropoff_search" placeholder="Where to?"></div>
+    </div>
+    <ul class="suggest" id="suggest"></ul>
+  </div>
+  <div class="coords-chip" id="distChip">Distance: – km</div>
+  <div class="cars-chip" id="carsChip">🚗 Looking for cars...</div>
+
+  <div class="sheet" id="sheet">
+    <div class="grabber"></div>
+    <h2 class="title" id="sheet-title">Plan your ride</h2>
+    <div class="sub" id="sheet-sub">Search a place, tap the map, or drag the pins.</div>
+
+    <div class="err" id="errBox"></div>
+
+    <!-- the same fields as the web page; app.py checks them again with read_form -->
+    <form id="trip-form" onsubmit="return false" autocomplete="off">
+      <input type="hidden" name="pickup_type" value="city">
+      <input type="hidden" name="dropoff_type" value="city">
+      <input type="hidden" name="ride_type" id="ride_type" value="UberX">
+
+      <div class="row2">
+        <div class="field"><label for="pickup_datetime">Pickup time</label>
+          <input id="pickup_datetime" name="pickup_datetime" type="datetime-local" min="2009-01-01T00:00" max="2015-06-30T23:59" value="{{ form.pickup_datetime }}" required></div>
+        <div class="field" style="max-width:100px"><label for="passenger_count">Riders</label>
+          <input id="passenger_count" name="passenger_count" type="number" min="1" max="6" value="{{ form.passenger_count }}" required></div>
+      </div>
+
+      <details class="more">
+        <summary>Trip details and coordinates</summary>
+        <div class="row2">
+          <div class="field"><label for="car_condition">Car</label>
+            <select id="car_condition" name="car_condition">{% for o in car_options %}<option {% if o == form.car_condition %}selected{% endif %}>{{ o }}</option>{% endfor %}</select></div>
+          <div class="field"><label for="traffic_condition">Traffic</label>
+            <select id="traffic_condition" name="traffic_condition">{% for o in traffic_options %}<option {% if o == form.traffic_condition %}selected{% endif %}>{{ o }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field"><label for="weather">Weather</label>
+          <select id="weather" name="weather">{% for o in weather_options %}<option {% if o == form.weather %}selected{% endif %}>{{ o }}</option>{% endfor %}</select></div>
+        <div class="row2">
+          <div class="field"><label for="pickup_latitude">Pickup lat</label><input id="pickup_latitude" name="pickup_latitude" type="number" step="any" min="40.5" max="41.0" value="{{ form.pickup_latitude }}" required></div>
+          <div class="field"><label for="pickup_longitude">Pickup lon</label><input id="pickup_longitude" name="pickup_longitude" type="number" step="any" min="-74.3" max="-73.7" value="{{ form.pickup_longitude }}" required></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label for="dropoff_latitude">Dropoff lat</label><input id="dropoff_latitude" name="dropoff_latitude" type="number" step="any" min="40.5" max="41.0" value="{{ form.dropoff_latitude }}" required></div>
+          <div class="field"><label for="dropoff_longitude">Dropoff lon</label><input id="dropoff_longitude" name="dropoff_longitude" type="number" step="any" min="-74.3" max="-73.7" value="{{ form.dropoff_longitude }}" required></div>
+        </div>
+      </details>
+      <div class="swapping" onclick="swap()">⇅ Swap pickup and dropoff</div>
+
+      <div id="rideArea" style="display:none">
+        <div class="surge" id="surgeBox"></div>
+        <div class="rides" id="rideList">
+          <div class="ride sel" data-ride="UberX"><div class="icon">🚗</div><div><div class="name">UberX · 4</div><div class="meta eta" data-extra="0">Affordable rides</div></div><div class="price"><span id="price_UberX">—</span><small class="busy"></small></div></div>
+          <div class="ride" data-ride="Comfort"><div class="icon">🚙</div><div><div class="name">Comfort · 4</div><div class="meta eta" data-extra="1">Newer cars, more legroom</div></div><div class="price"><span id="price_Comfort">—</span><small class="busy"></small></div></div>
+          <div class="ride" data-ride="UberXL"><div class="icon">🚐</div><div><div class="name">UberXL · 6</div><div class="meta eta" data-extra="2">Groups up to 6</div></div><div class="price"><span id="price_UberXL">—</span><small class="busy"></small></div></div>
+        </div>
+
+        <div class="field"><label for="promo_code">Promo code</label>
+          <input id="promo_code" name="promo_code" placeholder="WELCOME10, AIRPORT5, NIGHT20" style="text-transform:uppercase"></div>
+        <div class="promo-msg" id="promoMsg"></div>
+
+        <div class="fare-card">
+          <div class="lbl" id="selName">Estimated fare</div>
+          <div class="big" id="bigFare">$0.00</div>
+          <div class="range" id="fareRange"></div>
+        </div>
+        <table class="break" id="breakTable"></table>
+        <div class="speed" id="speedTxt"></div>
+
+        <div style="font-size:11px;font-weight:700;color:#555;margin-top:14px;">BEST TIME TO RIDE</div>
+        <div class="hourbars" id="hourBars"></div>
+        <div class="hourlbl">{% for h in range(24) %}<span>{{ h }}</span>{% endfor %}</div>
+        <div style="font-size:12px;color:#555;margin-top:6px;" id="bestTimeTxt"></div>
+      </div>
+    </form>
+  </div>
+
+  <div class="cta"><button class="btn" id="mainBtn" onclick="mainAction()">Check prices</button></div>
+</div>
+
+<script>
+  // popular places, so search works even without the internet search service
+  const PLACES = [
+    { name: "Times Square", area: "Manhattan", lat: 40.7580, lon: -73.9855 },
+    { name: "Wall Street", area: "Financial District", lat: 40.7069, lon: -74.0113 },
+    { name: "JFK Airport", area: "Queens", lat: 40.6413, lon: -73.7781 },
+    { name: "LaGuardia Airport", area: "Queens", lat: 40.7769, lon: -73.8740 },
+    { name: "Newark Airport", area: "New Jersey", lat: 40.6895, lon: -74.1745 },
+    { name: "Central Park", area: "Manhattan", lat: 40.7812, lon: -73.9665 },
+    { name: "Empire State Building", area: "Midtown", lat: 40.7484, lon: -73.9857 },
+    { name: "Grand Central Terminal", area: "Midtown", lat: 40.7527, lon: -73.9772 },
+    { name: "Brooklyn Bridge", area: "Brooklyn", lat: 40.7061, lon: -73.9969 },
+    { name: "Williamsburg", area: "Brooklyn", lat: 40.7081, lon: -73.9571 },
+    { name: "Yankee Stadium", area: "Bronx", lat: 40.8296, lon: -73.9262 },
+    { name: "Columbia University", area: "Upper Manhattan", lat: 40.8075, lon: -73.9626 },
+  ];
+  const LAT_MIN = 40.5, LAT_MAX = 41.0, LON_MIN = -74.3, LON_MAX = -73.7;
+
+  const form = document.getElementById("trip-form");
+  const names = { pickup: "Times Square", dropoff: "Wall Street" };
+  let turn = "dropoff", stage = "plan", lastDetails = null, routeLine = null, routeMin = null, priceTimer = null;
+
+  function field(id) { return document.getElementById(id); }
+  function money(x) { return "$" + Number(x).toFixed(2); }
+  function inNYC(lat, lon) { return lat >= LAT_MIN && lat <= LAT_MAX && lon >= LON_MIN && lon <= LON_MAX; }
+  function point(p) { return [parseFloat(field(p + "_latitude").value), parseFloat(field(p + "_longitude").value)]; }
+
+  // ---------- map ----------
+  const hasMap = typeof L !== "undefined";
+  let map = null;
+  const pins = {};
+  if (hasMap) {
+    map = L.map("map", { zoomControl: false }).setView([40.73, -73.99], 12);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+                { maxZoom: 17, attribution: "Esri, HERE, Garmin, OpenStreetMap" }).addTo(map);
+    ["pickup", "dropoff"].forEach(p => {
+      const shape = p === "pickup" ? "border-radius:50%;background:#000" : "border-radius:2px;background:#276EF1";
+      const icon = L.divIcon({ className: "", iconSize: [20, 20], iconAnchor: [10, 10],
+        html: `<div style="width:14px;height:14px;${shape};border:3px solid #fff;box-shadow:0 0 5px rgba(0,0,0,.5)"></div>` });
+      pins[p] = L.marker(point(p), { icon: icon, draggable: true, zIndexOffset: 1000 }).addTo(map);
+      pins[p].on("dragend", () => {
+        const ll = pins[p].getLatLng();
+        if (!inNYC(ll.lat, ll.lng)) { showErr(["Please keep the point inside New York."]); pins[p].setLatLng(point(p)); return; }
+        names[p] = "Pinned location";
+        setPoint(p, ll.lat, ll.lng);
+      });
+    });
+    // tapping the map moves the point that is selected at the top
+    map.on("click", e => {
+      if (stage !== "plan" && stage !== "prices") return;
+      if (!inNYC(e.latlng.lat, e.latlng.lng)) { showErr(["Please choose a place inside New York."]); return; }
+      names[turn] = "Pinned location";
+      setPoint(turn, e.latlng.lat, e.latlng.lng);
+    });
+  }
+
+  // which point the next map tap moves
+  function setTurn(p) {
+    turn = p;
+    field("pickup-row").classList.toggle("active", p === "pickup");
+    field("dropoff-row").classList.toggle("active", p === "dropoff");
+  }
+
+  // write a point into the form, move its pin, redraw the route and refresh the prices
+  function setPoint(p, lat, lon) {
+    field(p + "_latitude").value = lat.toFixed(6);
+    field(p + "_longitude").value = lon.toFixed(6);
+    field(p + "_search").value = names[p] === "Pinned location" ? "📍 Pinned location" : names[p];
+    if (hasMap) pins[p].setLatLng([lat, lon]);
+    drawRoute();
+    if (p === "pickup") placeCars();
+    if (stage === "prices") refreshPrices();
+  }
+
+  // straight-line distance in km
+  function km(a, b) {
+    const r = x => x * Math.PI / 180;
+    const h = Math.sin(r(b[0] - a[0]) / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(r(b[1] - a[1]) / 2) ** 2;
+    return 2 * 6371 * Math.asin(Math.sqrt(h));
+  }
+
+  // road route (free OSRM service), or a dashed straight line if it fails
+  function drawRoute() {
+    const a = point("pickup"), b = point("dropoff");
+    field("distChip").textContent = "Distance: " + km(a, b).toFixed(2) + " km · straight line";
+    if (!hasMap) return;
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+    routeMin = null;
+    fetch(`https://router.project-osrm.org/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`)
+      .then(r => r.json())
+      .then(data => {
+        const route = data.routes[0];
+        if (routeLine) map.removeLayer(routeLine);
+        routeLine = L.polyline(route.geometry.coordinates.map(c => [c[1], c[0]]), { color: "#000", weight: 4 }).addTo(map);
+        routeMin = Math.round(route.duration / 60);
+        updateCars();
+      })
+      .catch(() => {
+        if (routeLine) map.removeLayer(routeLine);
+        routeLine = L.polyline([a, b], { color: "#000", weight: 3, dashArray: "6 8" }).addTo(map);
+      });
+    map.fitBounds(L.latLngBounds([a, b]), { paddingTopLeft: [40, 170], paddingBottomRight: [40, 500], maxZoom: 14 });
+  }
+
+  function swap() {
+    ["latitude", "longitude"].forEach(part => {
+      const keep = field("pickup_" + part).value;
+      field("pickup_" + part).value = field("dropoff_" + part).value;
+      field("dropoff_" + part).value = keep;
+    });
+    [names.pickup, names.dropoff] = [names.dropoff, names.pickup];
+    ["pickup", "dropoff"].forEach(p => setPoint(p, point(p)[0], point(p)[1]));
+    placeCars();
+  }
+
+  // typing coordinates by hand moves the pins too
+  ["pickup", "dropoff"].forEach(p => ["latitude", "longitude"].forEach(part =>
+    field(p + "_" + part).addEventListener("change", () => {
+      const [lat, lon] = point(p);
+      if (!isNaN(lat) && !isNaN(lon) && inNYC(lat, lon)) { names[p] = "Pinned location"; setPoint(p, lat, lon); }
+    })));
+
+  // ---------- search ----------
+  let searchTimer = null;
+  function showSuggestions(p, list) {
+    const box = field("suggest");
+    box.innerHTML = "";
+    list.forEach(place => {
+      const li = document.createElement("li");
+      li.innerHTML = `📍 ${place.name}<small>${place.area}</small>`;
+      li.onmousedown = () => {
+        names[p] = place.name;
+        box.style.display = "none";
+        setPoint(p, place.lat, place.lon);
+        if (p === "pickup") { setTurn("dropoff"); field("dropoff_search").focus(); }
+      };
+      box.appendChild(li);
+    });
+    box.style.display = list.length ? "block" : "none";
+  }
+  ["pickup", "dropoff"].forEach(p => {
+    const input = field(p + "_search");
+    input.addEventListener("focus", () => { setTurn(p); input.select(); showSuggestions(p, PLACES.slice(0, 6)); });
+    input.addEventListener("blur", () => setTimeout(() => field("suggest").style.display = "none", 150));
+    input.addEventListener("input", () => {
+      const text = input.value.trim().toLowerCase();
+      const local = PLACES.filter(x => x.name.toLowerCase().includes(text) || x.area.toLowerCase().includes(text));
+      showSuggestions(p, local);
+      clearTimeout(searchTimer);
+      if (text.length < 3) return;
+      // more places from OpenStreetMap (free, no key), limited to the New York box
+      searchTimer = setTimeout(() => {
+        fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&bounded=1" +
+              `&viewbox=${LON_MIN},${LAT_MAX},${LON_MAX},${LAT_MIN}&q=${encodeURIComponent(text)}`)
+          .then(r => r.json())
+          .then(results => {
+            const more = results.map(r => {
+              const parts = r.display_name.split(", ");
+              return { name: parts[0], area: parts.slice(1, 3).join(", "), lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
+            });
+            showSuggestions(p, local.concat(more));
+          })
+          .catch(() => {});
+      }, 400);
+    });
+  });
+
+  // ---------- prices from app.py ----------
+  function showErr(list) {
+    const box = field("errBox");
+    box.innerHTML = list.length === 1 ? list[0] : "<ul>" + list.map(e => `<li>${e}</li>`).join("") + "</ul>";
+    box.style.display = "block";
+    field("sheet").scrollTop = 0;
+  }
+  function hideErr() { field("errBox").style.display = "none"; }
+
+  // the main button: check prices, then request the ride
+  function mainAction() {
+    if (stage === "plan") { checkPrices(); }
+    else if (stage === "prices") { requestRide(); }
+    else if (stage === "done") { resetTrip(); }
+  }
+
+  function checkPrices() {
+    hideErr();
+    if (!form.reportValidity()) return;            // the browser's own checks first
+    field("mainBtn").disabled = true;
+    field("mainBtn").textContent = "Getting prices…";
+    askServer().finally(() => { field("mainBtn").disabled = false; updateButton(); });
+  }
+
+  function refreshPrices() {
+    clearTimeout(priceTimer);
+    priceTimer = setTimeout(askServer, 300);
+  }
+
+  // one call to /predict (price + all ride types) and one to /hours (24 hours)
+  function askServer() {
+    const data = new FormData(form);
+    const price = fetch("/predict", { method: "POST", body: data })
+      .then(r => r.json())
+      .then(d => {
+        if (d.errors) { lastDetails = null; showErr(d.errors); if (stage === "prices") updateButton(); return; }
+        hideErr();
+        stage = "prices";
+        showPrices(d);
+      })
+      .catch(() => showErr(["Could not reach the Flask app. Is it running? Start it with: py -3.12 app.py"]));
+    fetch("/hours", { method: "POST", body: new FormData(form) })
+      .then(r => r.json())
+      .then(showHours)
+      .catch(() => {});
+    return price;
+  }
+
+  function showPrices(d) {
+    lastDetails = d;
+    field("rideArea").style.display = "block";
+    field("sheet-title").textContent = "Choose a ride";
+    field("sheet-sub").textContent = `${names.pickup} → ${names.dropoff}`;
+    Object.entries(d.rides).forEach(([name, p]) => field("price_" + name).textContent = money(p));
+    const busy = d.surge > 1;
+    document.querySelectorAll(".busy").forEach(el => el.textContent = busy ? "⚡ Busy" : "");
+    field("surgeBox").style.display = busy ? "block" : "none";
+    field("surgeBox").innerHTML = busy ? `⚡ <b>${d.surge_label}:</b> fares are higher due to increased demand (× ${d.surge})` : "";
+
+    field("selName").textContent = "Estimated fare · " + d.ride_type;
+    field("bigFare").textContent = money(d.final_fare);
+    field("fareRange").textContent = `Likely between ${money(d.low)} and ${money(d.high)}`;
+    let rows = `<tr><td>Trip fare</td><td>${money(d.model_fare)}</td></tr>` +
+               `<tr><td>${d.ride_type} (× ${d.multiplier})</td><td>${money(d.ride_fare)}</td></tr>`;
+    if (busy) rows += `<tr><td>${d.surge_label} (× ${d.surge})</td><td>+ ${money(d.surge_amount)}</td></tr>`;
+    if (d.discount > 0) rows += `<tr><td>Promo</td><td>− ${money(d.discount)}</td></tr>`;
+    rows += `<tr class="total"><td>You pay</td><td>${money(d.final_fare)}</td></tr>` +
+            `<tr><td>Distance (used by the model)</td><td>${d.distance_km} km</td></tr>`;
+    if (d.airport) rows += `<tr><td colspan="2" style="text-align:left;color:#777;font-weight:400">✈ Airport fares and tolls included</td></tr>`;
+    field("breakTable").innerHTML = rows;
+    field("speedTxt").textContent = d.latency_ms !== undefined ? `⏱ Priced by the model in ${d.latency_ms} ms` : "";
+
+    const msg = field("promoMsg");
+    msg.textContent = d.promo_message;
+    msg.className = "promo-msg " + (d.discount > 0 ? "ok" : d.promo_message ? "bad" : "");
+
+    // 5 or 6 riders only fit in an UberXL
+    const many = parseInt(field("passenger_count").value, 10) >= 5;
+    document.querySelectorAll(".ride").forEach(el => el.classList.toggle("off", many && el.dataset.ride !== "UberXL"));
+    updateButton();
+    updateCars();
+  }
+
+  // the bar chart: grey = trip fare, orange = busy-time extra
+  function showHours(data) {
+    const bars = field("hourBars");
+    bars.innerHTML = "";
+    if (data.errors) { field("bestTimeTxt").textContent = ""; return; }
+    const totals = data.hours.map(h => h.total);
+    const low = Math.min(...totals), high = Math.max(...totals);
+    const nowHour = parseInt((field("pickup_datetime").value.split("T")[1] || "0").split(":")[0], 10);
+    data.hours.forEach(h => {
+      const col = document.createElement("div");
+      col.className = "col" + (h.total === low ? " cheapest" : "") + (h.hour === nowHour ? " now" : "");
+      const height = 25 + 75 * (high > low ? (h.total - low) / (high - low) : 1);
+      const base = height * h.fare / h.total;
+      col.innerHTML = `<div class="extra" style="height:${height - base}%"></div><div class="base" style="height:${base}%"></div>`;
+      col.title = `${h.hour}:00 → ${money(h.total)}`;
+      col.onclick = () => {
+        field("pickup_datetime").value = field("pickup_datetime").value.split("T")[0] + "T" + String(h.hour).padStart(2, "0") + ":00";
+        refreshPrices();
+      };
+      bars.appendChild(col);
+    });
+    field("bestTimeTxt").innerHTML = `Cheapest: <b>${data.cheapest.hour}:00 · ${money(data.cheapest.total)}</b> · ` +
+      `Most expensive: <b style="color:#C25E00">${data.priciest.hour}:00 · ${money(data.priciest.total)}</b>`;
+  }
+
+  function updateButton() {
+    const btn = field("mainBtn");
+    if (stage === "plan") btn.textContent = "Check prices";
+    if (stage === "prices") btn.textContent = lastDetails ? `Choose ${field("ride_type").value} · ${money(lastDetails.final_fare)}` : "Fix the trip details";
+    if (stage === "done") btn.textContent = "Done";
+  }
+
+  // choosing a ride type asks the server again (promo and busy time depend on it)
+  document.querySelectorAll(".ride").forEach(el => el.addEventListener("click", () => {
+    if (el.classList.contains("off")) return;
+    document.querySelectorAll(".ride").forEach(x => x.classList.remove("sel"));
+    el.classList.add("sel");
+    field("ride_type").value = el.dataset.ride;
+    refreshPrices();
+  }));
+  ["pickup_datetime", "passenger_count", "car_condition", "traffic_condition", "weather"].forEach(id =>
+    field(id).addEventListener("change", () => {
+      if (parseInt(field("passenger_count").value, 10) >= 5) {
+        field("ride_type").value = "UberXL";
+        document.querySelectorAll(".ride").forEach(x => x.classList.toggle("sel", x.dataset.ride === "UberXL"));
+      }
+      if (stage === "prices") refreshPrices();
+    }));
+  field("promo_code").addEventListener("change", refreshPrices);
+
+  // ---------- cars on the map (a simulation for the demo, not real drivers) ----------
+  let cars = [], riding = false;
+
+  function carIcon() {
+    return L.divIcon({ className: "", iconSize: [16, 26], iconAnchor: [8, 13],
+      html: `<div class="car"><svg width="16" height="26" viewBox="0 0 16 26"><rect x="1" y="1" width="14" height="24" rx="5" fill="#111"/><rect x="4" y="5" width="8" height="5" rx="2" fill="#9ca3af"/><rect x="4" y="17" width="8" height="3" rx="1.5" fill="#9ca3af"/></svg></div>` });
+  }
+  function heading(a, b) { return Math.atan2((b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180), b[0] - a[0]) * 180 / Math.PI; }
+  function turnCar(m, deg) { const el = m.getElement(); if (el) el.querySelector(".car").style.transform = `rotate(${deg}deg)`; }
+
+  function placeCars() {
+    if (!hasMap || riding) return;
+    cars.forEach(c => map.removeLayer(c.marker));
+    const p = point("pickup");
+    cars = Array.from({ length: 5 }, () => {
+      const pos = [p[0] + (Math.random() - 0.5) * 0.02, p[1] + (Math.random() - 0.5) * 0.025];
+      return { pos: pos, target: pos, marker: L.marker(pos, { icon: carIcon(), interactive: false }).addTo(map) };
+    });
+    updateCars();
+  }
+
+  // cars drive slowly around the pickup
+  setInterval(() => {
+    if (riding) return;
+    const p = point("pickup");
+    cars.forEach(c => {
+      if (km(c.pos, c.target) < 0.02) c.target = [p[0] + (Math.random() - 0.5) * 0.02, p[1] + (Math.random() - 0.5) * 0.025];
+      const step = Math.min(1, 0.008 / Math.max(km(c.pos, c.target), 0.001));
+      const next = [c.pos[0] + (c.target[0] - c.pos[0]) * step, c.pos[1] + (c.target[1] - c.pos[1]) * step];
+      turnCar(c.marker, heading(c.pos, next));
+      c.pos = next;
+      c.marker.setLatLng(next);
+    });
+    updateCars();
+  }, 1000);
+
+  // how far the closest car is, and the time on each ride
+  function updateCars() {
+    if (riding || !cars.length) return;
+    const p = point("pickup");
+    const minutes = Math.max(1, Math.round(Math.min(...cars.map(c => km(c.pos, p))) / 20 * 60));
+    field("carsChip").textContent = `🚗 ${cars.length} cars · ${minutes} min away`;
+    const start = new Date(field("pickup_datetime").value);
+    document.querySelectorAll(".eta").forEach(el => {
+      const wait = minutes + parseInt(el.dataset.extra, 10);
+      const t = new Date(start.getTime() + (wait + (routeMin || Math.round(km(point("pickup"), point("dropoff")) * 3))) * 60000);
+      el.textContent = `${wait} min away · ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} dropoff`;
+    });
+  }
+
+  // move a marker along points in a given time
+  function drive(marker, path, seconds, done) {
+    const parts = path.slice(1).map((pt, i) => km(path[i], pt));
+    const total = parts.reduce((a, b) => a + b, 0) || 1;
+    const t0 = performance.now();
+    (function frame(now) {
+      let left = Math.min(1, (now - t0) / (seconds * 1000)) * total, i = 0;
+      while (i < parts.length - 1 && left > parts[i]) { left -= parts[i]; i++; }
+      const a = path[i], b = path[i + 1] || path[i], f = parts[i] ? Math.min(1, left / parts[i]) : 1;
+      marker.setLatLng([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]);
+      if (b !== a) turnCar(marker, heading(a, b));
+      if (now - t0 < seconds * 1000) requestAnimationFrame(frame); else done();
+    })(t0);
+  }
+
+  // the closest car picks you up and drives the route, then the trip is saved to Activity
+  function requestRide() {
+    if (!lastDetails || !cars.length) return;
+    riding = true; stage = "riding";
+    const btn = field("mainBtn"), p = point("pickup");
+    btn.disabled = true;
+    cars.sort((a, b) => km(a.pos, p) - km(b.pos, p));
+    const driver = cars[0];
+    const route = routeLine ? routeLine.getLatLngs().map(x => [x.lat, x.lng]) : [p, point("dropoff")];
+    field("sheet-title").textContent = "Your driver is on the way";
+    btn.textContent = "🚗 Driver arriving…";
+    field("carsChip").textContent = "🚗 Driver arriving";
+    drive(driver.marker, [driver.pos, p], 3, () => {
+      field("sheet-title").textContent = "Heading to " + names.dropoff;
+      btn.textContent = "🟢 On the trip…";
+      field("carsChip").textContent = "🟢 On the trip";
+      drive(driver.marker, route, 7, () => {
+        field("sheet-title").textContent = "You have arrived · " + money(lastDetails.final_fare);
+        field("carsChip").textContent = "✅ Arrived";
+        fetch("/activity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          service: "ride", label: field("ride_type").value, price: lastDetails.final_fare,
+          pickup: point("pickup"), dropoff: point("dropoff"), pickup_name: names.pickup, dropoff_name: names.dropoff,
+          time: field("pickup_datetime").value }) }).catch(() => {});
+        stage = "done";
+        btn.disabled = false;
+        updateButton();
+      });
+    });
+  }
+
+  function resetTrip() {
+    riding = false; stage = "prices";
+    field("sheet-title").textContent = "Choose a ride";
+    placeCars();
+    updateButton();
+  }
+
+  // ---------- start ----------
+  field("pickup_search").value = names.pickup;
+  field("dropoff_search").value = names.dropoff;
+  setTurn("dropoff");
+  drawRoute();
+  placeCars();
+</script>
+</body>
+</html>
