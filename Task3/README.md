@@ -26,25 +26,22 @@ There is also a phone version at `/mobile`.
 ## Project Files
 
 ```
-Task3_Uber_Fare/
-├── notebook.ipynb            # Task 2 pipeline + model comparison + saving + Stage 12 check
+Task3/
+├── Model_deployment_Task3.ipynb          # Task 2 pipeline + model comparison + saving + Stage 12 check
 ├── app.py                    # Flask app (loads the model once, checks inputs, predicts)
 ├── fare_pipeline.py          # Feature engineering + preprocessing used in training and in the app
 ├── final_pipeline.joblib     # Saved model together with its preprocessing
-├── fare_range.json           # Price range shown under the fare (from test errors)
-├── pickup_points.json        # Sample pickup points for the busy-areas heat map
 ├── test_app.py               # 25 automated tests
 ├── speed_benchmark.py        # Measures prediction speed
-├── requirements.txt
+├── Requirements.txt
 ├── README.md
-├── templates/
-│   ├── index.html            # Web page (map + form + result)
-│   └── mobile.html           # Phone page
+├── index.html                # Web page (map + form + result)
+├── mobile.html               # Phone page
 └── screenshots/
-    ├── 01_times_square_to_wall_street.png
-    ├── 02_jfk_to_midtown.png
-    ├── 03_empire_state_to_grand_central.png
-    └── 04_invalid_input.png
+    ├── Trip1.png
+    ├── JFK-airport.png
+    ├── Trip2.png
+    └── invalid-trip.png
 ```
 
 Files created while the app runs (not needed for submission):
@@ -132,12 +129,13 @@ Best Gradient Boosting settings: learning rate 0.05, 300 iterations, 31 leaves, 
 
 Gradient Boosting has the lowest RMSE (3.93) and the highest R² (0.829), so it makes the
 smallest errors on unseen trips. Random Forest is almost the same on the metrics, so the choice
-was made on speed: Gradient Boosting trains about 7 times faster (28 s vs 212 s), predicts one
-trip in about [__] ms, and its saved file is much smaller, which suits a web app that answers
+was made on speed: Gradient Boosting trains about 7 times faster (28 s vs 212 s), predicts about
+1.7 times faster (0.023 ms vs 0.040 ms per trip), and its saved file is small (1.1 MB), which suits a web app that answers
 every request live. Linear Regression is the fastest and easiest to explain, but it is clearly
 less accurate (MAE $2.13 vs $1.59) because it cannot learn non-linear patterns such as the JFK
-flat fare. For interpretability, Gradient Boosting still gives feature importances, which show
-that distance and airport trips drive the price, matching the EDA.
+flat fare. For interpretability, Gradient Boosting is harder to read than Linear Regression, but its
+predictions follow the EDA patterns (distance, the JFK flat fare, the 2012 price change),
+as the sanity check in Part D shows.
 
 ### Data leakage check
 
@@ -248,16 +246,16 @@ All screenshots are in the `screenshots/` folder.
 
 | # | File | Pickup → Dropoff | Date and time | Passengers / Ride | Trip fare (model) | Final price | Distance |
 |---|------|------------------|---------------|-------------------|-------------------|-------------|----------|
-| 1 | `01_times_square_to_wall_street.png` | Times Square (40.7580, -73.9855) → Wall Street (40.7069, -74.0113) | Wed 2014-03-05, 14:00 | 5 / UberXL (×1.5) | $19.62 | $29.43 | 6.08 km |
-| 2 | `02_jfk_to_midtown.png` | JFK Airport → Midtown (40.7580, -73.9855) | Mon 2014-05-05, 14:00 | 5 / UberXL (×1.5) | $57.77 | $86.66 | 21.77 km |
-| 3 | `03_empire_state_to_grand_central.png` | Empire State (40.7484, -73.9857) → Grand Central (40.7527, -73.9772) | Sat 2014-03-08, 09:00 | 1 / UberX | $__ | $__ | __ km |
-| 4 | `04_invalid_input.png` | Pickup latitude = 30.7489 (outside New York) | Sat 2014-03-08, 09:00 | — | — | No price | — |
+| 1 | `Trip1.png` | Times Square (40.7580, -73.9855) → Wall Street (40.7069, -74.0113) | Wed 2014-03-05, 14:00 | 5 / UberXL (×1.5) | $19.62 | $29.43 | 6.08 km |
+| 2 | `JFK-airport.png` | JFK Airport → Midtown (40.7580, -73.9855) | Mon 2014-05-05, 14:00 | 5 / UberXL (×1.5) | $57.77 | $86.66 | 21.77 km |
+| 3 | `Trip2.png` | Empire State (40.7484, -73.9857) → New Jersey (40.7527, -74.3000) | Sat 2014-03-08, 09:00 | 5 / UberXL (×1.5) | $81.52 | $122.28 | 26.49 km |
+| 4 | `invalid-trip.png` | Pickup latitude = 30.7489 (outside New York) | Sat 2014-03-08, 09:00 | — | — | No price | — |
 
 **Why these trips:**
 
 - **Trip 1:** a normal city ride (about 6 km).
 - **Trip 2:** an airport ride. The model learned the JFK flat fare from the data.
-- **Trip 3:** a very short ride, to check that small trips get small prices.
+- **Trip 3:** a long ride out of the city (about 26 km), to check that long trips get high prices.
 - **Trip 4:** wrong input. The app does not predict and shows a red message:
   *"Pickup latitude must be between 40.5 and 41.0 (inside New York)."*
 
@@ -265,16 +263,16 @@ None of these trips fall in a surge period, so the final price is only
 trip fare × ride type.
 
 #### 1. Times Square → Wall Street
-![Trip 1](screenshots/01_times_square_to_wall_street.png)
+![Trip 1](screenshots/Trip1.png)
 
 #### 2. JFK → Midtown
-![Trip 2](screenshots/02_jfk_to_midtown.png)
+![Trip 2](screenshots/JFK-airport.png)
 
-#### 3. Empire State → Grand Central
-![Trip 3](screenshots/03_empire_state_to_grand_central.png)
+#### 3. Empire State → New Jersey
+![Trip 3](screenshots/Trip2.png)
 
 #### 4. Invalid input
-![Invalid input](screenshots/04_invalid_input.png)
+![Invalid input](screenshots/invalid-trip.png)
 
 ### Automated tests
 
@@ -292,15 +290,13 @@ py -3.12 -m unittest test_app.py -v
 
 Result: `Ran 25 tests ... OK`
 
-### Example request and response (notebook Stage 12)
+### Example request and response
 
-The notebook sends one valid and one invalid request to the app with `app.test_client()`.
-
-**Valid request:** Times Square → Wall Street, Wed 2014-03-05 14:00, 1 passenger, UberX
+**Valid request:** Times Square → Wall Street, Wed 2014-03-05 14:00, 5 passengers, UberXL (screenshot 1)
 
 ```
 POST /predict
-→ model_fare: $__   final_fare: $__   distance_km: __
+→ model_fare: $19.62   final_fare: $29.43   distance_km: 6.08
 ```
 
 **Invalid request:** pickup and dropoff at the same point
@@ -312,12 +308,15 @@ POST /predict
 
 ### Prediction speed
 
-Measured with `speed_benchmark.py` and in notebook Stage 12 (200 calls):
+Measured in the notebook (Stage 9) by predicting the whole test set and dividing by the number of trips:
 
-| Measure | Model only | Full `/predict` request |
-|---------|-----------|-------------------------|
-| Median | __ ms | __ ms |
-| 95% of calls under | __ ms | __ ms |
+| Model | ms per trip |
+|-------|-------------|
+| Linear Regression | 0.006 |
+| **Gradient Boosting (tuned)** | **0.023** |
+| Random Forest (tuned) | 0.040 |
+
+To time single requests through the app, run `py -3.12 speed_benchmark.py`.
 
 ### Sanity check against the real NYC taxi tariff (Sept 2012)
 
